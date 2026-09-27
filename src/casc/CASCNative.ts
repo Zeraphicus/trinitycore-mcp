@@ -43,18 +43,23 @@ interface CASCNativeModule {
   CASCStorage: new (wowPath: string, localeMask?: number) => NativeCASCStorage;
 }
 
-// Load the native addon
-let nativeAddon: CASCNativeModule;
+// CASC extraction is optional for the DB2 and database MCP tools. Load the
+// native addon only when a caller actually opens CASC storage.
+let nativeAddon: CASCNativeModule | undefined;
 
-try {
-  // Path to the compiled native addon
-  const addonPath = path.join(__dirname, '../../build/Release/casc_native.node');
-  nativeAddon = require(addonPath);
-} catch (error) {
-  throw new Error(
-    `Failed to load CASC native addon: ${error instanceof Error ? error.message : String(error)}\n` +
-    `Make sure to build the native addon first: npx node-gyp rebuild`
-  );
+function getNativeAddon(): CASCNativeModule {
+  if (!nativeAddon) {
+    try {
+      const addonPath = path.join(__dirname, '../../build/Release/casc_native.node');
+      nativeAddon = require(addonPath) as CASCNativeModule;
+    } catch (error) {
+      throw new Error(
+        `Failed to load CASC native addon: ${error instanceof Error ? error.message : String(error)}\n` +
+        `Make sure to build the native addon first: npx node-gyp rebuild`
+      );
+    }
+  }
+  return nativeAddon;
 }
 
 /**
@@ -96,7 +101,7 @@ export class CASCStorage {
    */
   constructor(wowPath: string, localeMask: number = CASC_LOCALE.ALL_WOW) {
     try {
-      this.nativeStorage = new nativeAddon.CASCStorage(wowPath, localeMask);
+      this.nativeStorage = new (getNativeAddon().CASCStorage)(wowPath, localeMask);
     } catch (error) {
       throw new Error(
         `Failed to open CASC storage at "${wowPath}": ${
