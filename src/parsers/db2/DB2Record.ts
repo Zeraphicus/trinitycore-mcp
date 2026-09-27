@@ -96,6 +96,18 @@ export class DB2Record {
     return this.getUInt32(0, 0);
   }
 
+  private identity: { rowIndex: number; sectionId: number; parentId: number | null } | null = null;
+
+  /** Identity supplied by the file's ID/relationship tables, never inferred from an ordinal. */
+  public setIdentity(recordId: number, rowIndex: number, sectionId: number, parentId: number | null): this {
+    this.recordId = recordId;
+    this.identity = { rowIndex, sectionId, parentId };
+    return this;
+  }
+
+  public getIdentity() { return { recordId: this.getId(), ...this.identity }; }
+  public getParentId(): number | null { return this.identity?.parentId ?? null; }
+
   /**
    * Get uint8 field value
    * @param field Field index
@@ -561,7 +573,10 @@ export class DB2Record {
 
     switch (meta.compressionType) {
       case DB2ColumnCompression.None: {
-        const size = Math.max(1, meta.bitSize >> 3);
+        // storage_info.bitSize spans the whole uncompressed array. field_structure
+        // describes an element; using the whole span skips elements after index 0.
+        const entry = this.fieldEntries[field];
+        const size = entry ? 4 - Math.floor(entry.unusedBits / 8) : Math.max(1, meta.bitSize >> 3);
         const off = recordBase + this.getStorageFieldOffset(field) + arrayIndex * size;
         let v = 0;
         for (let i = 0; i < Math.min(size, 4); i++) {

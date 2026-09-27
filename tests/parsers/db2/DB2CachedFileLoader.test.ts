@@ -24,6 +24,11 @@ jest.mock('../../../src/parsers/db2/DB2FileLoader', () => {
         stringTableSize: 1000,
       })),
       getRecordCount: jest.fn(() => 100),
+      getRecordByIndex: jest.fn((index: number) => {
+        const buffer = Buffer.alloc(64);
+        buffer.writeUInt32LE(index, 0);
+        return new DB2Record(buffer, Buffer.from('MockString\0'), [], 0);
+      }),
       getRecord: jest.fn((index: number) => {
         // Create mock DB2Record
         const buffer = Buffer.alloc(64);

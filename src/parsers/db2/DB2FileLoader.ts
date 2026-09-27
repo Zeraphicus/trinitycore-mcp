@@ -17,7 +17,6 @@ import {
 import { logger } from '../../utils/logger';
 import { IDB2FileSource, DB2FileSystemSource } from './DB2FileSource';
 import { DB2Record } from './DB2Record';
-import { DB2FileLoaderSparse } from './DB2FileLoaderSparse';
 import { DB2IdList, DB2OffsetMap, DB2CopyTable, DB2ParentLookupTable } from './DB2Tables';
 import { DB2SectionManager } from './DB2SectionManager';
 import { DB2SparseFieldLayout, getSparseFieldLayout } from './DB2FieldLayout';
@@ -63,6 +62,9 @@ export class DB2FileLoader {
   private copyTable: DB2CopyTable | null = null;
   private parentLookupTable: DB2ParentLookupTable | null = null;
 
+  private rowIds = new Map<number, number>();
+  private explicitSparseLayout = false;
+
   constructor() {}
 
   /**
@@ -76,6 +78,11 @@ export class DB2FileLoader {
     }
 
     this.source = source;
+    this.rowIds.clear();
+    this.sectionManager.clear();
+    this.copyTable = null;
+    this.parentLookupTable = null;
+    this.columnMeta = [];
 
     // Read header (204 bytes for WDC5/WDC6)
     const headerBuffer = Buffer.alloc(204);
@@ -131,16 +138,12 @@ export class DB2FileLoader {
 
     // Load ID list and offset map for ALL sections (WoWDev format)
     // This handles both sparse and dense files with section manager
-    if (this.header.minId !== this.header.maxId) {
-      this.loadIdListAndOffsetMap(source);
-    } else {
-      logger.warn(`⚠️  File has no ID range (minId == maxId), skipping ID list loading`);
-    }
+    this.loadIdListAndOffsetMap(source);
 
     // A sparse file needs its field layout to place fields inside a record.
     // Resolve it from the file name; setSparseFieldLayout() can override.
     this.fileName = source.getFileName();
-    if (this.sparseFieldLayout === null) {
+    if (!this.explicitSparseLayout) {
       this.sparseFieldLayout = getSparseFieldLayout(this.fileName);
     }
 
@@ -310,8 +313,8 @@ export class DB2FileLoader {
    * Relationship blocks also address their targets by index, so resolving an
    * index to an id only to look the id back up is a detour.
    *
-   * Dense records only: a sparse file addresses its records through the
-   * catalog, which getRecord() already handles.
+   * External IDs are preserved for dense and sparse rows. Inline IDs are
+   * read using the header's declared ID field.
    *
    * @param recordIndex Zero-based position across all sections, in file order
    * @returns Record accessor, or null when the index is out of range
@@ -328,11 +331,6 @@ export class DB2FileLoader {
     if (!this.header) {
       throw new Error('DB2 file not loaded');
     }
-    if (this.isSparseFile()) {
-      throw new Error(
-        'getRecordByIndex is for dense files; a sparse file addresses records through its catalog'
-      );
-    }
     if (!Number.isInteger(recordIndex) || recordIndex < 0) {
       return null;
     }
@@ -342,6 +340,14 @@ export class DB2FileLoader {
     for (let sectionIndex = 0; sectionIndex < this.sections.length; sectionIndex++) {
       const section = this.sections[sectionIndex];
       if (remaining < section.recordCount) {
+        const externalId = this.rowIds.get(recordIndex);
+        if (this.isSparseFile()) {
+          if (externalId === undefined) throw new Error(`No catalog ID for row ${recordIndex}`);
+          const offset = this.sectionManager.getOffsetMapEntry(externalId);
+          if (!offset) throw new Error(`No catalog entry for record ${externalId}`);
+          return this.readSparseRecord(externalId, offset.offset, offset.size)
+            .setIdentity(externalId, recordIndex, sectionIndex, this.parentLookupTable?.getParent(recordIndex) ?? null);
+        }
         const recordDataSize = section.recordCount * this.header.recordSize;
         const combinedSize = recordDataSize + section.stringTableSize;
         const buffer = this.getSectionBuffer(sectionIndex, recordDataSize, combinedSize);
@@ -358,13 +364,13 @@ export class DB2FileLoader {
           sectionRecordStartOffset -
           sectionStringTableStartOffset;
 
-        return new DB2Record(
+        const record = new DB2Record(
           buffer,
           buffer,
           this.columnMeta,
           remaining,
           this.fieldEntries,
-          undefined, // the id is read from the record, which is where it lives here
+          externalId,
           false,
           this.header.recordSize,
           section.recordCount,
@@ -374,6 +380,8 @@ export class DB2FileLoader {
           this.commonValues,
           this.header.packedDataOffset
         );
+        const id = externalId ?? record.getUInt32(this.header.indexField);
+        return record.setIdentity(id, recordIndex, sectionIndex, this.parentLookupTable?.getParent(recordIndex) ?? null);
       }
       remaining -= section.recordCount;
     }
@@ -389,100 +397,30 @@ export class DB2FileLoader {
    */
   public setSparseFieldLayout(layout: DB2SparseFieldLayout | null): void {
     this.sparseFieldLayout = layout;
+    this.explicitSparseLayout = layout !== null;
   }
 
   /**
-   * Get record by spell ID (WoWDev format with multi-section support)
+   * Get record by its actual DB2 ID using the section index
    * Uses section manager to find spell across all sections
-   * @param spellId Spell ID to retrieve
+   * @param spellId DB2 record ID to retrieve
    * @returns DB2Record accessor
    */
   public getRecord(spellId: number): DB2Record {
-    // Step 1: Use section manager to find which section contains this spell
-    const mapping = this.sectionManager.findSpellId(spellId);
-    if (!mapping) {
-      throw new Error(`Spell ID ${spellId} not found in any section (searched ${this.sectionManager.getSectionCount()} sections)`);
+    if (!Number.isSafeInteger(spellId) || spellId < 0) throw new Error('Record ID must be a nonnegative integer');
+    let sourceId = spellId;
+    const seen = new Set<number>();
+    while (this.copyTable?.isCopy(sourceId)) {
+      if (seen.has(sourceId)) throw new Error(`Copy-table cycle at record ${sourceId}`);
+      seen.add(sourceId);
+      sourceId = this.copyTable.getSourceRowId(sourceId)!;
     }
-
-    // Step 2: Determine if this is sparse or inline (dense) format
-    const offsetEntry = this.sectionManager.getOffsetMapEntry(spellId);
-
-    let recordOffset: number;
-    let recordSize: number;
-    const isSparse = false;
-
-    if (offsetEntry) {
-      // SPARSE FILE: the catalog gives this record's absolute file offset and
-      // its exact length. Records are variable length, so nothing about the
-      // dense path below applies: read just this record and walk its fields.
-      return this.readSparseRecord(spellId, offsetEntry.offset, offsetEntry.size);
-    } else {
-      // INLINE/DENSE FILE: Calculate offset from record index
-      // Based on TrinityCore's DB2FileLoaderRegularImpl::GetRawRecordData()
-      // Returns: &_data[recordNumber * _header->RecordSize]
-      const section = this.sections[mapping.sectionIndex];
-      recordOffset = section.fileOffset + (mapping.localIndex * this.header!.recordSize);
-      recordSize = this.header!.recordSize;
-    }
-
-    // Step 3: Load section's COMBINED buffer (like TrinityCore)
-    // Trinity allocates: _data[RecordSize * RecordCount + StringTableSize]
-    // Then sets: _stringTable = &_data[RecordSize * RecordCount]
-    //
-    // In TrinityCore's buffer, ALL sections' records come first, then ALL sections' strings.
-    // Our per-section buffer only has ONE section's records then ONE section's strings.
-    // We compute a stringOffsetCorrection to translate raw offsets to our buffer layout.
-    const section = this.sections[mapping.sectionIndex];
-    const recordDataSize = section.recordCount * this.header!.recordSize;
-    const combinedSize = recordDataSize + section.stringTableSize;
-
-    const combinedBuffer = this.getSectionBuffer(mapping.sectionIndex, recordDataSize, combinedSize);
-
-    // Compute string offset correction for this section.
-    //
-    // TrinityCore's combined buffer layout:
-    //   [Sec0 Records][Sec1 Records]...[SecN Records][Sec0 Strings][Sec1 Strings]...[SecN Strings]
-    //   String table base = header.recordCount * recordSize (total across ALL sections)
-    //
-    // Our per-section buffer layout:
-    //   [Section Records][Section Strings]
-    //   String table base = section.recordCount * recordSize
-    //
-    // Raw string offsets in records are calibrated for TrinityCore's layout.
-    // Correction translates TrinityCore absolute positions to our per-section positions:
-    //   correction = (section.recordCount - header.recordCount) * recordSize
-    //              + sectionRecordStartOffset - sectionStringTableStartOffset
-    //
-    // Where sectionRecordStartOffset = sum of previous sections' record data sizes
-    //       sectionStringTableStartOffset = sum of previous sections' string table sizes
-    let sectionRecordStartOffset = 0;
-    let sectionStringTableStartOffset = 0;
-    for (let i = 0; i < mapping.sectionIndex; i++) {
-      sectionRecordStartOffset += this.sections[i].recordCount * this.header!.recordSize;
-      sectionStringTableStartOffset += this.sections[i].stringTableSize;
-    }
-
-    const stringOffsetCorrection =
-      (section.recordCount - this.header!.recordCount) * this.header!.recordSize
-      + sectionRecordStartOffset
-      - sectionStringTableStartOffset;
-
-    return new DB2Record(
-      combinedBuffer,
-      combinedBuffer,
-      this.columnMeta,
-      mapping.localIndex,
-      this.fieldEntries,
-      spellId,
-      isSparse,
-      this.header!.recordSize,
-      section.recordCount,
-      section.fileOffset,
-      stringOffsetCorrection,
-      this.palletValues,
-      this.commonValues,
-      this.header!.packedDataOffset
-    );
+    const mapping = this.sectionManager.findSpellId(sourceId);
+    if (!mapping) throw new Error(`Record ID ${spellId} not found in ${this.fileName}`);
+    const rowIndex = this.sections.slice(0, mapping.sectionIndex)
+      .reduce((sum, section) => sum + section.recordCount, mapping.localIndex);
+    const record = this.getRecordByIndex(rowIndex)!;
+    return record.setIdentity(spellId, rowIndex, mapping.sectionIndex, record.getParentId());
   }
 
   /**
@@ -751,8 +689,19 @@ export class DB2FileLoader {
     for (let sectionIdx = 0; sectionIdx < this.sections.length; sectionIdx++) {
       const section = this.sections[sectionIdx];
 
-      if (section.idTableSize === 0) {
-        logger.warn(`⚠️  Section ${sectionIdx}: No ID table (idTableSize = 0)`);
+      if (section.idTableSize === 0 && section.catalogDataCount === 0) {
+        if (this.header!.indexField < 0 || this.header!.indexField >= this.header!.fieldCount) {
+          if (section.recordCount > 0) throw new Error('DB2 section has neither an ID table nor a valid inline ID field');
+          continue;
+        }
+        const base = this.sections.slice(0, sectionIdx).reduce((sum, s) => sum + s.recordCount, 0);
+        const ids = new Map<number, number>();
+        for (let i = 0; i < section.recordCount; i++) {
+          const id = this.getRecordByIndex(base + i)!.getId();
+          ids.set(id, i);
+          this.rowIds.set(base + i, id);
+        }
+        this.sectionManager.addSection(sectionIdx, section.fileOffset, ids, null);
         continue;
       }
 
@@ -844,6 +793,8 @@ export class DB2FileLoader {
 
       // Add section to manager (convert DB2IdList and DB2OffsetMap to Maps for section manager)
       if (sectionIdList) {
+        const base = this.sections.slice(0, sectionIdx).reduce((sum, s) => sum + s.recordCount, 0);
+        for (const [id, localIndex] of sectionIdList.toMap()) this.rowIds.set(base + localIndex, id);
         this.sectionManager.addSection(
           sectionIdx,
           section.fileOffset,
@@ -872,7 +823,9 @@ export class DB2FileLoader {
 
       // Calculate copy table offset (after ID table)
       const idTableSize = section.idTableSize || 0;
-      const copyTableOffset = section.fileOffset +
+      const copyTableOffset = section.catalogDataCount > 0
+        ? section.catalogDataOffset + section.idTableSize
+        : section.fileOffset +
                              section.recordCount * this.header!.recordSize +
                              section.stringTableSize +
                              idTableSize;
@@ -901,14 +854,19 @@ export class DB2FileLoader {
    * @param source File source
    */
   private loadParentLookupTable(source: IDB2FileSource): void {
+    let base = 0;
     for (const section of this.sections) {
+      const sectionBase = base;
+      base += section.recordCount;
       if (section.parentLookupDataSize === 0) {
         continue;
       }
 
       // Calculate parent lookup offset (implementation depends on file structure)
       // This is a simplified approach - actual offset calculation may vary
-      const parentLookupOffset = section.fileOffset +
+      const parentLookupOffset = section.catalogDataCount > 0
+        ? section.catalogDataOffset + section.idTableSize + section.copyTableCount * 8 + section.catalogDataCount * 6
+        : section.fileOffset +
                                 section.recordCount * this.header!.recordSize +
                                 section.stringTableSize +
                                 (section.idTableSize || 0) +
@@ -947,10 +905,12 @@ export class DB2FileLoader {
       // Trust whichever is smaller: a corrupt count must not read out of bounds.
       const entryCount = Math.min(declaredEntries, availableEntries);
 
-      this.parentLookupTable.loadFromBuffer(
-        parentLookupBuffer.subarray(PARENT_LOOKUP_HEADER_SIZE),
-        entryCount
-      );
+      for (let i = 0; i < entryCount; i++) {
+        const offset = PARENT_LOOKUP_HEADER_SIZE + i * PARENT_LOOKUP_ENTRY_SIZE;
+        const localIndex = parentLookupBuffer.readUInt32LE(offset + 4);
+        if (localIndex >= section.recordCount) throw new Error('Relationship row index out of section bounds');
+        this.parentLookupTable.add(parentLookupBuffer.readUInt32LE(offset), sectionBase + localIndex);
+      }
     }
   }
 

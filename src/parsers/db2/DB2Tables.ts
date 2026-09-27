@@ -339,6 +339,7 @@ export class DB2CopyTable {
  * Manages parent-child relationships between records
  */
 export class DB2ParentLookupTable {
+  private parents = new Map<number, number>();
   private entries: Map<number, number[]>; // parentId -> array of child record indices
 
   constructor() {
@@ -355,6 +356,7 @@ export class DB2ParentLookupTable {
       this.entries.set(parentId, []);
     }
     this.entries.get(parentId)!.push(recordIndex);
+    this.parents.set(recordIndex, parentId);
   }
 
   /**
@@ -362,6 +364,10 @@ export class DB2ParentLookupTable {
    * @param parentId Parent record ID
    * @returns Array of child record indices
    */
+  public getParent(recordIndex: number): number | null {
+    return this.parents.get(recordIndex) ?? null;
+  }
+
   public getChildren(parentId: number): number[] {
     return this.entries.get(parentId) || [];
   }
@@ -408,6 +414,7 @@ export class DB2ParentLookupTable {
    */
   public clear(): void {
     this.entries.clear();
+    this.parents.clear();
   }
 
   /**
