@@ -1,3 +1,5 @@
+import { SpellNameSchema } from "./SpellNameSchema";
+import { SummonPropertiesSchema } from "./SummonPropertiesSchema";
 /**
  * SchemaFactory.ts
  *
@@ -455,6 +457,8 @@ export class SchemaFactory {
    */
   private static readonly REGISTERED_SCHEMA_CLASSES: BuildAwareSchemaClass[] = [
     SpellSchema,
+    SpellNameSchema,
+    SummonPropertiesSchema,
     SpellEffectSchema,
     ItemSchema,
     ItemSparseSchema,

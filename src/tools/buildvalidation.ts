@@ -41,6 +41,8 @@ export interface BuildValidationReport {
 /** Schema name -> the DB2 file it parses. */
 const SCHEMA_FILES: Record<string, string> = {
   SpellSchema: "SpellName.db2",
+  SpellNameSchema: "SpellName.db2",
+  SummonPropertiesSchema: "SummonProperties.db2",
   SpellEffectSchema: "SpellEffect.db2",
   ItemSchema: "Item.db2",
   ItemSparseSchema: "ItemSparse.db2",
@@ -74,13 +76,13 @@ function readLayoutHash(filePath: string): number {
   }
 }
 
-/** Aggregate per-schema rows. `unverified` is reported but does not block. */
+/** Aggregate per-schema rows. `unverified` is not successful verification. */
 export function summarizeValidation(rows: SchemaValidationRow[]): ValidationSummary {
   const count = (s: ValidationStatus) => rows.filter((r) => r.status === s).length;
   const mismatch = count("mismatch");
   const missing = count("missing");
   return {
-    ok: mismatch === 0 && missing === 0,
+    ok: mismatch === 0 && missing === 0 && count("unverified") === 0,
     verified: count("verified"),
     unverified: count("unverified"),
     mismatch,
@@ -162,6 +164,14 @@ export async function validateBuildSchemas(
     }
   }
 
+  // Metadata matches alone do not prove a decoder. Keep these investigation
+  // tables visible until typed decoders and decoded-value checks are implemented.
+  if (entry.build === 69875) {
+    for (const file of ['Creature.db2', 'CreatureDisplayInfo.db2']) {
+      rows.push({ schema: file.replace('.db2', 'Schema'), file, status: db2DirIndex.has(file.toLowerCase()) ? 'unverified' : 'missing',
+        detail: 'Metadata/header comparison recorded in docs/validation/midnight-69875-metadata.json; typed decoder not yet verified' });
+    }
+  }
   let drift: string | undefined;
   const wowPath = process.env.WOW_PATH;
   if (wowPath) {

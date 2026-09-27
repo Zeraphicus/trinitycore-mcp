@@ -7,6 +7,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { DB2CachedLoaderFactory } from "../parsers/db2/DB2CachedFileLoader";
 import { SchemaFactory } from "../parsers/schemas/SchemaFactory";
+import { SpellNameSchema } from "../parsers/schemas/SpellNameSchema";
+import { openClientTable } from "./client-table";
+import { SummonPropertiesSchema } from "../parsers/schemas/SummonPropertiesSchema";
+import { SpellEffectSchema } from "../parsers/schemas/SpellEffectSchema";
 import { resolveDataPath } from "../version/BuildManifest";
 
 /**
@@ -24,6 +28,9 @@ export interface DBCQueryResult {
   file: string;
   recordId?: number;
   recordNumber?: number;
+  rowIndex?: number;
+  sectionId?: number;
+  parentId?: number | null;
   success: boolean;
   data?: any;
   rawData?: any;
@@ -36,90 +43,33 @@ export interface DBCQueryResult {
 /**
  * Query DBC/DB2 file for a specific record
  * @param dbcFile File name (e.g., "Spell.db2", "Item.db2")
- * @param recordId Record ID to query (0-based index)
- * @returns Query result with parsed data
+ * @param recordId Actual DB2 record identity, never a row ordinal
  */
-export async function queryDBC(dbcFile: string, recordId: number): Promise<DBCQueryResult> {
+export async function queryDBC(dbcFile: string, recordId?: number, rowIndex?: number): Promise<DBCQueryResult> {
   try {
-    const filePath = path.join(basePathFor(dbcFile), dbcFile);
-
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return {
-        file: dbcFile,
-        recordId,
-        success: false,
-        error: `DBC/DB2 file not found: ${filePath}`,
-        note: "Please ensure the file exists in the configured DBC/DB2 path",
-        filePath,
-      };
-    }
-
-    // Get or create cached loader
-    const loader = DB2CachedLoaderFactory.getLoader(dbcFile);
-
-    // Load file if not already loaded
-    try {
-      if (loader.getRecordCount() === 0) {
-        loader.loadFromFile(filePath);
-      }
-    } catch (loadError) {
-      // File not loaded yet, load it now
-      loader.loadFromFile(filePath);
-    }
-
-    // Validate record ID
-    const recordCount = loader.getRecordCount();
-    if (recordId < 0 || recordId >= recordCount) {
-      return {
-        file: dbcFile,
-        recordId,
-        success: false,
-        error: `Invalid record ID: ${recordId}. Valid range: 0-${recordCount - 1}`,
-        note: `File contains ${recordCount} records`,
-        filePath,
-      };
-    }
-
-    // Get cached record
-    const rawRecord = loader.getCachedRecord(recordId);
-
-    // Try to parse with schema if available
-    let parsedData = null;
-    if (SchemaFactory.hasSchema(dbcFile)) {
-      parsedData = loader.getTypedRecord(recordId);
-    }
-
-    // Get cache statistics
-    const cacheStats = loader.getCacheStats();
-
-    return {
-      file: dbcFile,
-      recordId,
-      recordNumber: recordId,
-      success: true,
-      data: parsedData,
-      rawData: rawRecord ? {
-        recordNumber: recordId,
-        fields: extractRawFields(rawRecord),
-      } : null,
-      cacheStats: {
-        rawCacheEntries: cacheStats.raw.entryCount,
-        parsedCacheEntries: cacheStats.parsed.entryCount,
-        totalHits: cacheStats.totalHits,
-        totalMisses: cacheStats.totalMisses,
-        hitRate: cacheStats.raw.hitRate.toFixed(2) + "%",
-        loadTime: cacheStats.loadTime + "ms",
-      },
-      filePath,
-    };
+    if ((recordId === undefined) === (rowIndex === undefined)) throw new Error('Provide exactly one of recordId or rowIndex');
+    const value = recordId ?? rowIndex!;
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error('recordId/rowIndex must be a nonnegative integer');
+    const loader = openClientTable(dbcFile);
+    const record = recordId !== undefined ? loader.getRecord(recordId) : loader.getRecordByIndex(rowIndex!);
+    if (!record) throw new Error(`Row index ${rowIndex} out of range`);
+    const name = dbcFile.toLowerCase();
+    let data: unknown;
+    if (name === 'summonproperties.db2') {
+      if (loader.getLayoutHash() !== 0xa4ca5ecf) throw new Error('SummonProperties layout mismatch');
+      data = SummonPropertiesSchema.parse(record);
+    } else if (name === 'spelleffect.db2') {
+      if (loader.getLayoutHash() !== 0x5362e3d4) throw new Error('SpellEffect layout mismatch');
+      data = SpellEffectSchema.parse(record);
+    } else if (name === 'spellname.db2') {
+      if (loader.getLayoutHash() !== 0x782ee721) throw new Error('SpellName layout mismatch');
+      data = SpellNameSchema.parse(record);
+    } else data = SchemaFactory.parseByFileName(dbcFile, record);
+    return { file: dbcFile, success: true, ...record.getIdentity(), data,
+      rawData: { ...record.getIdentity(), fields: extractRawFields(record) } };
   } catch (error) {
-    return {
-      file: dbcFile,
-      recordId,
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    return { file: dbcFile, recordId, rowIndex, success: false,
+      error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -161,14 +111,10 @@ export async function queryAllDBC(
     // Get records with schema parsing if available
     let records: any[] = [];
     if (SchemaFactory.hasSchema(dbcFile)) {
-      const typedRecords = loader.batchGetTypedRecords(
-        Array.from({ length: actualLimit }, (_, i) => i)
-      );
+      const typedRecords = Array.from({ length: actualLimit }, (_, i) => loader.getTypedRecordByIndex(i));
       records = typedRecords.filter((r) => r !== null);
     } else {
-      const rawRecords = loader.batchGetRecords(
-        Array.from({ length: actualLimit }, (_, i) => i)
-      );
+      const rawRecords = Array.from({ length: actualLimit }, (_, i) => loader.getRecordByIndex(i)!);
       records = rawRecords.map((r, i) => ({
         recordNumber: i,
         fields: extractRawFields(r),

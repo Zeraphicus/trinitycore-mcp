@@ -1,0 +1,574 @@
+{
+  "build": 69875,
+  "sourceRevision": "08299e865e01d341240cbad4144afabc0975926b",
+  "metadataPath": "src/server/game/DataStores/DB2Metadata.h",
+  "loadInfoPath": "src/server/game/DataStores/DB2LoadInfo.h",
+  "tables": {
+    "SpellName": {
+      "expectedLayoutHash": "0x782ee721",
+      "indexField": -1,
+      "parentIndexField": -1,
+      "fieldCount": 1,
+      "fileFieldCount": 1,
+      "fields": [
+        {
+          "type": "FT_STRING",
+          "arraySize": 1,
+          "signed": true
+        }
+      ],
+      "expandedLoadInfoNames": [
+        "ID",
+        "Name"
+      ],
+      "actualHeader": {
+        "layoutHash": "0x782ee721",
+        "fieldCount": 1,
+        "indexField": 0,
+        "flags": 4,
+        "externalId": true,
+        "totalFieldCount": 1,
+        "parentLookupCount": 0
+      },
+      "fileSha256": "e543d43fe6571e27e2f7b16989a7cec05885cf5b3beb77f9482af593499af6a1",
+      "structuralStatus": "match",
+      "decoderStatus": "verified"
+    },
+    "SpellEffect": {
+      "expectedLayoutHash": "0x5362e3d4",
+      "indexField": -1,
+      "parentIndexField": 29,
+      "fieldCount": 30,
+      "fileFieldCount": 29,
+      "fields": [
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 2,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 2,
+          "signed": false
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 4,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 2,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        }
+      ],
+      "expandedLoadInfoNames": [
+        "ID",
+        "EffectAura",
+        "DifficultyID",
+        "EffectIndex",
+        "Effect",
+        "EffectAmplitude",
+        "EffectAttributes",
+        "EffectAuraPeriod",
+        "EffectBonusCoefficient",
+        "EffectChainAmplitude",
+        "EffectChainTargets",
+        "EffectItemType",
+        "EffectMechanic",
+        "EffectPointsPerResource",
+        "EffectPosFacing",
+        "EffectRealPointsPerLevel",
+        "EffectTriggerSpell",
+        "BonusCoefficientFromAP",
+        "PvpMultiplier",
+        "Coefficient",
+        "Variance",
+        "ResourceCoefficient",
+        "GroupSizeBasePointsCoefficient",
+        "EffectBasePoints",
+        "ScalingClass",
+        "TargetNodeGraph",
+        "EffectMiscValue1",
+        "EffectMiscValue2",
+        "EffectRadiusIndex1",
+        "EffectRadiusIndex2",
+        "EffectSpellClassMask1",
+        "EffectSpellClassMask2",
+        "EffectSpellClassMask3",
+        "EffectSpellClassMask4",
+        "ImplicitTarget1",
+        "ImplicitTarget2",
+        "SpellID"
+      ],
+      "actualHeader": {
+        "layoutHash": "0x5362e3d4",
+        "fieldCount": 29,
+        "indexField": 0,
+        "flags": 4,
+        "externalId": true,
+        "totalFieldCount": 29,
+        "parentLookupCount": 1
+      },
+      "fileSha256": "dc5824b294ca8329e51ac470757b9c0a682c38be6e36815a816c97bf8b321267",
+      "structuralStatus": "match",
+      "decoderStatus": "verified"
+    },
+    "SummonProperties": {
+      "expectedLayoutHash": "0xa4ca5ecf",
+      "indexField": -1,
+      "parentIndexField": -1,
+      "fieldCount": 5,
+      "fileFieldCount": 5,
+      "fields": [
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 2,
+          "signed": true
+        }
+      ],
+      "expandedLoadInfoNames": [
+        "ID",
+        "Control",
+        "Faction",
+        "Title",
+        "Slot",
+        "Flags1",
+        "Flags2"
+      ],
+      "actualHeader": {
+        "layoutHash": "0xa4ca5ecf",
+        "fieldCount": 5,
+        "indexField": 0,
+        "flags": 4,
+        "externalId": true,
+        "totalFieldCount": 5,
+        "parentLookupCount": 0
+      },
+      "fileSha256": "ad448ff1dbaf76a5afe1043800c342d8c16f4761c4d4cdc352deea19da0c3acd",
+      "structuralStatus": "match",
+      "decoderStatus": "verified"
+    },
+    "Creature": {
+      "expectedLayoutHash": "0x6e14c900",
+      "indexField": -1,
+      "parentIndexField": -1,
+      "fieldCount": 11,
+      "fileFieldCount": 11,
+      "fields": [
+        {
+          "type": "FT_STRING",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_STRING",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_STRING",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_STRING",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 4,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 4,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 3,
+          "signed": true
+        }
+      ],
+      "expandedLoadInfoNames": [],
+      "actualHeader": {
+        "layoutHash": "0x6e14c900",
+        "fieldCount": 11,
+        "indexField": 0,
+        "flags": 4,
+        "externalId": true,
+        "totalFieldCount": 11,
+        "parentLookupCount": 0
+      },
+      "fileSha256": "c59a7145f9b54cc69cefc74f0118139bd2d8a42dd786bfea9fcdf2e765706992",
+      "structuralStatus": "match",
+      "decoderStatus": "unverified"
+    },
+    "CreatureDisplayInfo": {
+      "expectedLayoutHash": "0x7275f5f6",
+      "indexField": 0,
+      "parentIndexField": -1,
+      "fieldCount": 28,
+      "fileFieldCount": 28,
+      "fields": [
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_BYTE",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_FLOAT",
+          "arraySize": 1,
+          "signed": true
+        },
+        {
+          "type": "FT_SHORT",
+          "arraySize": 1,
+          "signed": false
+        },
+        {
+          "type": "FT_INT",
+          "arraySize": 4,
+          "signed": true
+        }
+      ],
+      "expandedLoadInfoNames": [
+        "ID",
+        "ModelID",
+        "SoundID",
+        "SizeClass",
+        "CreatureModelScale",
+        "CreatureModelAlpha",
+        "BloodID",
+        "ExtendedDisplayInfoID",
+        "NPCSoundID",
+        "ParticleColorID",
+        "PortraitCreatureDisplayInfoID",
+        "PortraitTextureFileDataID",
+        "ObjectEffectPackageID",
+        "AnimReplacementSetID",
+        "Flags",
+        "StateSpellVisualKitID",
+        "PlayerOverrideScale",
+        "PetInstanceScale",
+        "UnarmedWeaponType",
+        "MountPoofSpellVisualKitID",
+        "DissolveEffectID",
+        "Gender",
+        "DissolveOutEffectID",
+        "CreatureModelMinLod",
+        "ConditionalCreatureModelID",
+        "Unknown_1100_1",
+        "Unknown_1100_2",
+        "TextureVariationFileDataID1",
+        "TextureVariationFileDataID2",
+        "TextureVariationFileDataID3",
+        "TextureVariationFileDataID4"
+      ],
+      "actualHeader": {
+        "layoutHash": "0x7275f5f6",
+        "fieldCount": 28,
+        "indexField": 0,
+        "flags": 0,
+        "externalId": false,
+        "totalFieldCount": 28,
+        "parentLookupCount": 0
+      },
+      "fileSha256": "7099387fadec38b367f1537494463caa828d83f7cad8402566bcc575a6fc2c8c",
+      "structuralStatus": "match",
+      "decoderStatus": "unverified"
+    }
+  }
+}
