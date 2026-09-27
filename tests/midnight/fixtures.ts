@@ -28,4 +28,3 @@ export function denseFixture(inline = false, single = false): Buffer {
   }
   return b;
 }
-

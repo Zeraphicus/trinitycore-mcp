@@ -92,6 +92,12 @@ npm test -- --runInBand tests/midnight/pinned-data.test.ts
 node scripts/validate-midnight.js
 ```
 
+Recorded validation on 2026-09-27: build PASS; full suite 1,765 passed,
+14 skipped, 0 failed across 76 passing suites; explicit pinned-data suite
+10 passed; lint PASS with 0 errors and 718 warnings; standalone stdio acceptance
+PASS with the native addon absent. The optional-native install lifecycle also
+completed without a native build.
+
 The ordinary suite has synthetic WDC5 fixtures requiring no client installation.
 The pinned-data suite explicitly skips without the opt-in flag. The standalone
 test starts a real stdio MCP server and checks tools through the MCP SDK; its
