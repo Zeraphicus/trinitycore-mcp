@@ -89,7 +89,9 @@ export function jsonResponse(data: unknown): ToolResponse {
   return {
     content: [{
       type: "text" as const,
-      text: JSON.stringify(data, null, 2),
+      // DB2 record metadata can contain 64-bit values. JSON has no BigInt
+      // type, so preserve their exact decimal value as a string.
+      text: JSON.stringify(data, (_key, value) => typeof value === "bigint" ? value.toString() : value, 2),
     }],
   };
 }
