@@ -96,13 +96,13 @@ const tables = new Map<string, LoadedTable | null>();
  * @returns The loaded table, or null when the file is absent or unreadable
  */
 function openTable(fileName: string): LoadedTable | null {
-  if (tables.has(fileName)) {
-    return tables.get(fileName) as LoadedTable | null;
+  const filePath = path.join(resolveDataPath('db2'), fileName);
+  if (tables.has(filePath)) {
+    return tables.get(filePath) as LoadedTable | null;
   }
 
   let loaded: LoadedTable | null = null;
   try {
-    const filePath = path.join(resolveDataPath('db2'), fileName);
     if (fs.existsSync(filePath)) {
       const source = new DB2FileSystemSource(filePath);
       const loader = new DB2FileLoader();
@@ -115,7 +115,7 @@ function openTable(fileName: string): LoadedTable | null {
     logger.warn(`Spell detail: failed to open ${fileName}: ${error}`);
   }
 
-  tables.set(fileName, loaded);
+  tables.set(filePath, loaded);
   return loaded;
 }
 

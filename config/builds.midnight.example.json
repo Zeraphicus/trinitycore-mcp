@@ -1,0 +1,23 @@
+{
+  "manifestVersion": 1,
+  "activeBuild": "12.1.0.69875",
+  "builds": {
+    "12.1.0.69875": {
+      "build": 69875,
+      "product": "wow",
+      "expansion": "Midnight",
+      "status": "active",
+      "db2Format": "WDC5",
+      "dataPaths": {
+        "db2": "./data/69875/dbc/enUS",
+        "dbc": "./data/69875/dbc/enUS",
+        "gt": "./data/69875/gt",
+        "vmap": "./data/69875/vmaps",
+        "mmap": "./data/69875/mmaps",
+        "listfile": ""
+      },
+      "cacheDir": "data/cache/69875",
+      "_note": "Set local extracted data paths. No verified 69875 opcode table is available."
+    }
+  }
+}

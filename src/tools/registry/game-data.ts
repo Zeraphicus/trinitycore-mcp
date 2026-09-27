@@ -7,6 +7,8 @@
  */
 
 import { ToolRegistryEntry, jsonResponse, textResponse } from "./types";
+import { traceSpellChain, TraceOptions } from "../spell-chain";
+import { listHotfixTables, describeHotfixTable, queryHotfixRecord } from "../hotfix";
 import { getSpellInfo } from "../spell";
 import { getItemInfo } from "../item";
 import { getQuestInfo } from "../quest";
@@ -20,9 +22,34 @@ import { listOpcodes, diffOpcodes } from "../opcodetools";
 
 export const gameDataTools: ToolRegistryEntry[] = [
   {
+    definition: { name: "trace-spell-chain", description: "Trace decoded client SpellEffect triggers and summons with record provenance. Script bindings are associations, not execution edges.",
+      inputSchema: { type: "object", properties: {
+        spellId: { type: "integer", minimum: 1 }, maxDepth: { type: "integer", minimum: 0, maximum: 10, default: 3 },
+        includeServerSide: { type: "boolean", default: false }, includeSummons: { type: "boolean", default: true },
+        includeCreature: { type: "boolean", default: true }, includeScripts: { type: "boolean", default: false },
+      }, required: ["spellId"] } },
+    handler: async args => jsonResponse(await traceSpellChain(args.spellId as number, args as TraceOptions)),
+  },
+  {
+    definition: { name: "list-hotfix-tables", description: "List available allowlisted client hotfix tables (read only).",
+      inputSchema: { type: "object", properties: {} } },
+    handler: async () => jsonResponse(await listHotfixTables()),
+  },
+  {
+    definition: { name: "describe-hotfix-table", description: "Describe an allowlisted hotfix table (read only).",
+      inputSchema: { type: "object", properties: { table: { type: "string" } }, required: ["table"] } },
+    handler: async args => jsonResponse(await describeHotfixTable(args.table as string)),
+  },
+  {
+    definition: { name: "query-hotfix-record", description: "Read one ID from an allowlisted hotfix table, optionally at an exact VerifiedBuild. At most 100 rows; no arbitrary SQL.",
+      inputSchema: { type: "object", properties: { table: { type: "string" }, id: { type: "integer", minimum: 0 },
+        verifiedBuild: { type: "integer", description: "Exact VerifiedBuild filter, including negative values if required" } }, required: ["table", "id"] } },
+    handler: async args => jsonResponse(await queryHotfixRecord(args.table as string, args.id as number, args.verifiedBuild as number | undefined)),
+  },
+  {
     definition: {
       name: "get-spell-info",
-      description: "Get detailed information about a spell from TrinityCore database and Spell.db2 (Week 7: Enhanced with DB2 caching, merged data sources, <1ms cache hits)",
+      description: "Get spell details and decoded client SpellEffect records for the active build, with server-side effects reported separately",
       inputSchema: {
         type: "object",
         properties: {
@@ -90,16 +117,19 @@ export const gameDataTools: ToolRegistryEntry[] = [
             type: "string",
             description: "Name of the DBC/DB2 file (e.g., 'Spell.db2', 'Item.db2', 'ItemSparse.db2')",
           },
+          rowIndex: { type: "integer", minimum: 0, description: "Explicit zero-based physical row index; mutually exclusive with recordId" },
           recordId: {
-            type: "number",
-            description: "Record ID to retrieve",
+            type: "integer",
+            minimum: 0,
+            description: "Actual DB2 record ID (not row position)",
           },
         },
-        required: ["dbcFile", "recordId"],
+        required: ["dbcFile"],
+        oneOf: [{ required: ["recordId"] }, { required: ["rowIndex"] }],
       },
     },
     handler: async (args) => {
-      const result = await queryDBC(args.dbcFile as string, args.recordId as number);
+      const result = await queryDBC(args.dbcFile as string, args.recordId as number | undefined, args.rowIndex as number | undefined);
       return jsonResponse(result);
     },
   },

@@ -26,7 +26,8 @@
     "setup": "npm run build && node scripts/ensure-spell-cache.js --strict",
     "postinstall": "node scripts/ensure-spell-cache.js --check",
     "fetch:casclib": "node scripts/fetch-casclib.js",
-    "build:native": "node-gyp rebuild"
+    "build:native": "node-gyp rebuild",
+    "install": "node scripts/install-optional-native.js"
   },
   "keywords": [
     "mcp",

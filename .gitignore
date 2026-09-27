@@ -56,3 +56,8 @@ data/cache/*/spell_*cache.json
 data/cache/*/spell_*cache.json.meta.json
 # Lock held while a build's spell caches are being generated.
 data/cache/*/.spell-cache-generating
+
+# Private build paths and investigation output
+config/builds.local.json
+LOCAL_*.json
+LOCAL_ENVIRONMENT.md

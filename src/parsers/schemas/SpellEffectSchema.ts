@@ -2,7 +2,7 @@
  * SpellEffectSchema.ts
  *
  * Schema parser for SpellEffect.db2 (WoW 12.0 Midnight)
- * Defines individual spell effects - each spell can have up to 3 effects
+ * Defines individual spell effects, including indices beyond the legacy three slots
  *
  * Based on TrinityCore DB2Structure.h:3836 and DB2LoadInfo.h:5264
  * Total Fields: 31 columns / 29 inline fields (ID and SpellID are $noninline$)
@@ -197,7 +197,7 @@ export interface SpellEffectEntry {
   difficultyID: number; // int32 - 0=normal, 1+=heroic/mythic variants
 
   // Field 2: Effect slot index
-  effectIndex: number; // int32 - 0, 1, or 2 (spell has max 3 effects)
+  effectIndex: number; // int32 - zero-based effect slot (can exceed 2)
 
   // Field 3: Effect type
   effect: number; // uint32 - SpellEffectName enum (346 types)
@@ -307,6 +307,8 @@ export class SpellEffectSchema {
     // these indices are written for 0x5362e3d4, so 11.2.7 data must report a
     // mismatch rather than be parsed with the wrong offsets.
     [69497, 0x5362e3d4],
+    // Source 08299e865e01 + pinned files + known-record assertions: docs/validation.
+    [69875, 0x5362e3d4],
   ]);
 
   /** Name used in gate errors and the validate-build-schemas report. */
@@ -342,7 +344,7 @@ export class SpellEffectSchema {
       effectAura: this.convertToInt16(record.getUInt16(0)),
 
       // Field 1: DifficultyID
-      difficultyID: record.getInt32(1),
+      difficultyID: this.convertToInt16(record.getUInt16(1)),
 
       // Field 2: EffectIndex
       effectIndex: record.getInt32(2),
@@ -436,9 +438,8 @@ export class SpellEffectSchema {
       ],
 
       // SpellID is $noninline,relation$ - it is not an inline field. The
-      // relationship block carries it; until that is surfaced per record it
-      // cannot be read here.
-      spellID: 0,
+      // relationship block carries it and the loader attaches it to the row.
+      spellID: record.getParentId() ?? 0,
     };
   }
 

@@ -35,9 +35,9 @@ describe("summarizeValidation", () => {
     expect(s.ok).toBe(false);
   });
 
-  it("treats unverified as non-blocking but reports it", () => {
+  it("does not treat unverified as successful verification", () => {
     const s = summarizeValidation([rows[0], rows[2]]);
-    expect(s.ok).toBe(true);
+    expect(s.ok).toBe(false);
     expect(s.unverified).toBe(1);
   });
 });

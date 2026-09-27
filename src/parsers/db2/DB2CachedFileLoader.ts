@@ -45,6 +45,7 @@ export class DB2CachedFileLoader {
   private parsedCache: RecordCache<any>; // For schema-parsed entries
   private fileName: string;
   private loadTime: number = 0;
+  private rowIds = new Map<number, number>();
   private cacheHitsTotal: number = 0;
   private cacheMissesTotal: number = 0;
 
@@ -68,6 +69,7 @@ export class DB2CachedFileLoader {
    */
   public load(source: IDB2FileSource): void {
     const startTime = Date.now();
+    this.clearCache();
     this.loader.load(source);
     this.loadTime = Date.now() - startTime;
   }
@@ -78,6 +80,7 @@ export class DB2CachedFileLoader {
    */
   public loadFromFile(filePath: string): void {
     const startTime = Date.now();
+    this.clearCache();
     this.loader.loadFromFile(filePath);
     this.loadTime = Date.now() - startTime;
   }
@@ -109,7 +112,7 @@ export class DB2CachedFileLoader {
 
   /**
    * Get record with caching (raw DB2Record)
-   * @param recordNumber Record index (0-based)
+   * @param recordNumber Actual record ID
    * @returns DB2Record accessor
    */
   public getCachedRecord(recordNumber: number): DB2Record {
@@ -132,9 +135,26 @@ export class DB2CachedFileLoader {
     return record;
   }
 
+  /** Explicit ordinal access; ID-based cache methods keep their existing contract. */
+  public getRecordByIndex(rowIndex: number): DB2Record | null {
+    const knownId = this.rowIds.get(rowIndex);
+    if (knownId !== undefined) return this.getCachedRecord(knownId);
+    const record = this.loader.getRecordByIndex(rowIndex);
+    if (record) {
+      this.rowIds.set(rowIndex, record.getId());
+      this.cache.set(`record:${record.getId()}`, record);
+    }
+    return record;
+  }
+
+  public getTypedRecordByIndex<T>(rowIndex: number): T | null {
+    const record = this.getRecordByIndex(rowIndex);
+    return record ? this.getTypedRecord<T>(record.getId()) : null;
+  }
+
   /**
    * Get record without caching (direct binary access)
-   * @param recordNumber Record index (0-based)
+   * @param recordNumber Actual record ID
    * @returns DB2Record accessor
    */
   public getRecord(recordNumber: number): DB2Record {
@@ -143,7 +163,7 @@ export class DB2CachedFileLoader {
 
   /**
    * Get typed schema entry with caching
-   * @param recordNumber Record index (0-based)
+   * @param recordNumber Actual record ID
    * @returns Parsed schema entry or null if schema not registered
    */
   public getTypedRecord<T>(recordNumber: number): T | null {
@@ -171,7 +191,7 @@ export class DB2CachedFileLoader {
 
   /**
    * Batch load records with caching
-   * @param recordNumbers Array of record indices
+   * @param recordNumbers Array of actual record IDs
    * @returns Array of DB2Records
    */
   public batchGetRecords(recordNumbers: number[]): DB2Record[] {
@@ -180,7 +200,7 @@ export class DB2CachedFileLoader {
 
   /**
    * Batch load typed records with caching
-   * @param recordNumbers Array of record indices
+   * @param recordNumbers Array of actual record IDs
    * @returns Array of parsed schema entries (may contain nulls)
    */
   public batchGetTypedRecords<T>(recordNumbers: number[]): Array<T | null> {
@@ -196,7 +216,7 @@ export class DB2CachedFileLoader {
     const records: DB2Record[] = [];
 
     for (let i = 0; i < count; i++) {
-      records.push(this.getCachedRecord(i));
+      records.push(this.getRecordByIndex(i)!);
     }
 
     return records;
@@ -211,7 +231,7 @@ export class DB2CachedFileLoader {
     const records: Array<T | null> = [];
 
     for (let i = 0; i < count; i++) {
-      records.push(this.getTypedRecord<T>(i));
+      records.push(this.getTypedRecordByIndex<T>(i));
     }
 
     return records;
@@ -219,7 +239,7 @@ export class DB2CachedFileLoader {
 
   /**
    * Preload and cache specific records
-   * @param recordNumbers Array of record indices to preload
+   * @param recordNumbers Array of actual record IDs to preload
    */
   public preloadRecords(recordNumbers: number[]): void {
     for (const index of recordNumbers) {
@@ -233,7 +253,7 @@ export class DB2CachedFileLoader {
   public preloadAll(): void {
     const count = this.getRecordCount();
     for (let i = 0; i < count; i++) {
-      this.getCachedRecord(i);
+      this.getRecordByIndex(i);
     }
   }
 
@@ -243,6 +263,7 @@ export class DB2CachedFileLoader {
   public clearCache(): void {
     this.cache.clear();
     this.parsedCache.clear();
+    this.rowIds.clear();
   }
 
   /**
