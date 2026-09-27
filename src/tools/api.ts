@@ -1,3 +1,4 @@
+import { getSourceAPI } from "./source-api";
 /**
  * TrinityCore API documentation tool
  */
@@ -183,6 +184,8 @@ Returns the account security level.
 };
 
 export async function getTrinityAPI(className: string, methodName?: string): Promise<string> {
+  const extracted = getSourceAPI(className, methodName);
+  if (extracted !== null) return extracted;
   const docs = API_DOCS[className];
 
   if (!docs) {
