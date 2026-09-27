@@ -3,6 +3,9 @@
  * Week 7: Enhanced with Spell.db2 integration via DB2CachedFileLoader
  */
 
+import { getClientEffects, ClientEffect } from "./client-effects";
+import { openClientTable } from "./client-table";
+import { resolveDataPath } from "../version/BuildManifest";
 import { queryWorld } from "../database/connection";
 import { DB2CachedLoaderFactory } from "../parsers/db2/DB2CachedFileLoader";
 import { SchemaFactory } from "../parsers/schemas/SchemaFactory";
@@ -69,7 +72,12 @@ export interface SpellInfo {
   }>;
   /** Global cooldown the spell triggers, in milliseconds. */
   globalCooldown?: number;
+  /** Compatibility alias: base-difficulty client effects only. */
   effects: SpellEffect[];
+  clientEffects?: ClientEffect[];
+  clientEffectsStatus?: { status: 'available' | 'unavailable'; error?: string };
+  serverSideEffects?: SpellEffect[];
+  serverSideEffectsStatus?: { status: 'available' | 'unavailable'; error?: string };
   // Week 7: Enhanced with DB2 data
   db2Data?: {
     spellName?: string;
@@ -134,7 +142,15 @@ interface SpellDataCacheEntry {
 // build at startup; a module-scope constant would capture whatever build was
 // active (or synthesized) at import time, which can be wrong.
 let spellNameCacheLoader: JsonCacheLoader<string> | null = null;
+let spellCacheBuild: number | undefined;
+function checkCacheBuild(): void {
+  const build = getActiveBuild().build;
+  if (build !== spellCacheBuild) {
+    spellNameCacheLoader = null; spellDataCacheLoader = null; spellCacheBuild = build;
+  }
+}
 function nameCache(): JsonCacheLoader<string> {
+  checkCacheBuild();
   if (!spellNameCacheLoader) {
     spellNameCacheLoader = new JsonCacheLoader<string>(
       cachePathFor("spell_names_cache.json"), "spell name",
@@ -146,6 +162,7 @@ function nameCache(): JsonCacheLoader<string> {
 
 let spellDataCacheLoader: JsonCacheLoader<SpellDataCacheEntry> | null = null;
 function dataCache(): JsonCacheLoader<SpellDataCacheEntry> {
+  checkCacheBuild();
   if (!spellDataCacheLoader) {
     spellDataCacheLoader = new JsonCacheLoader<SpellDataCacheEntry>(
       cachePathFor("spell_data_cache.json"), "spell data",
@@ -211,7 +228,7 @@ async function loadSpellFromDB2(spellId: number): Promise<{
     }
 
     // PRIORITY 2: Fall back to DB2 parsing
-    const filePath = path.join(DB2_PATH, SPELL_DB2_FILE);
+    const filePath = path.join(resolveDataPath("db2"), SPELL_DB2_FILE);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
@@ -240,7 +257,10 @@ async function loadSpellFromDB2(spellId: number): Promise<{
     const hitsBefore = statsBefore.totalHits;
 
     // Try to get typed record (automatically cached)
-    const spellEntry = loader.getTypedRecord<any>(spellId);
+    const nameTable = openClientTable(SPELL_DB2_FILE);
+    if (nameTable.getLayoutHash() !== 0x782ee721) throw new Error("SpellName layout mismatch");
+    const nameRecord = nameTable.getRecord(spellId);
+    const spellEntry = { Name_lang: nameRecord.getString(0) };
 
     // Check if this was a cache hit
     const statsAfter = loader.getCacheStats();
@@ -268,6 +288,28 @@ async function loadSpellFromDB2(spellId: number): Promise<{
  * Week 7: Enhanced to merge database + DB2 data with caching
  */
 export async function getSpellInfo(spellId: number): Promise<SpellInfo> {
+  if (!Number.isSafeInteger(spellId) || spellId <= 0) throw new Error('spellId must be a positive integer');
+  let clientEffects: ClientEffect[] = [];
+  let clientEffectsStatus: SpellInfo['clientEffectsStatus'] = { status: 'available' };
+  try { clientEffects = getClientEffects(spellId); }
+  catch (error) { clientEffectsStatus = { status: 'unavailable', error: String(error) }; }
+  const info = await getSpellInfoBase(spellId);
+  const serverSideEffects = info.effects;
+  // A spell with effects can exist without a localized name row.
+  if (clientEffects.length && info.name === 'Not Found') {
+    info.name = 'Unknown';
+    info.error = undefined;
+    info.dataSource = 'db2';
+  }
+  return { ...info, clientEffects, clientEffectsStatus, serverSideEffects,
+    serverSideEffectsStatus: info.serverSideEffectsStatus ?? { status: 'unavailable', error: 'Server-side effects were not queried' },
+    effects: clientEffects.filter(e => e.difficultyId === 0).map(e => ({
+      ...e, index: e.effectIndex, implicitTargetA: e.targetA, implicitTargetB: e.targetB,
+    })),
+  };
+}
+
+async function getSpellInfoBase(spellId: number): Promise<SpellInfo> {
   try {
     // Step 1: Load from DB2 (with caching - JSON cache or DB2 parser)
     const db2Result = await loadSpellFromDB2(spellId);
@@ -346,6 +388,7 @@ export async function getSpellInfo(spellId: number): Promise<SpellInfo> {
     // Note: Most spell effects only exist in SpellEffect.db2, not in the database
     // Gracefully handle database connection errors
     const effects: SpellEffect[] = [];
+    let serverSideEffectsStatus: SpellInfo["serverSideEffectsStatus"] = { status: "available" };
     try {
       const effectsQuery = `
         SELECT
@@ -395,6 +438,7 @@ export async function getSpellInfo(spellId: number): Promise<SpellInfo> {
         }
       }
     } catch (effectsError) {
+      serverSideEffectsStatus = { status: "unavailable", error: String(effectsError) };
       // Database unavailable - not fatal, effects will be empty
       logger.warn(`Effects query failed for spell ${spellId}:`, effectsError instanceof Error ? effectsError.message : String(effectsError));
     }
@@ -459,6 +503,7 @@ export async function getSpellInfo(spellId: number): Promise<SpellInfo> {
       /** Global cooldown the spell triggers, in milliseconds. */
       globalCooldown: detail?.globalCooldownMs ?? 0,
       effects,
+      serverSideEffectsStatus,
       // Week 7: Include DB2 data (supports both JSON cache and DB2 parser formats)
       db2Data: db2Spell
         ? {
